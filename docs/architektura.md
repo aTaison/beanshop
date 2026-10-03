@@ -24,6 +24,34 @@ tests/support/     klient API, budowniczowie danych, schematy kontraktów (zod)
 5. `POST /api/orders` tworzy zamówienie NEW, zdejmuje towar ze stanu, czyści koszyk.
 6. `POST /api/orders/:id/pay`, `/cancel` oraz `PATCH /api/orders/:id/status` (admin) zmieniają status zgodnie z `src/domain/orderStatus.ts`.
 
+## Diagram przepływu: od dodania produktu do złożenia zamówienia
+
+```mermaid
+flowchart TD
+    A[Zalogowany klient] --> B[POST /api/cart/items<br/>dodanie produktu]
+    B --> C{Produkt istnieje<br/>i ilość mieści się<br/>w limitach oraz stanie?}
+    C -- Nie --> C1[400/404/409<br/>komunikat błędu]
+    C -- Tak --> D[Koszyk zwraca cartView<br/>z podsumowaniem]
+    D --> E{Zmiana koszyka?}
+    E -- Zmiana ilości --> F[PATCH /api/cart/items/:productId]
+    E -- Usunięcie produktu --> G[DELETE /api/cart/items/:productId]
+    E -- Kod rabatowy --> H[POST /api/cart/discount]
+    E -- Sposób dostawy --> I[PUT /api/cart/shipping]
+    E -- Nie --> J[POST /api/orders]
+    F --> D
+    G --> D
+    H --> H1{Kod poprawny<br/>i spełnia warunki?}
+    H1 -- Nie --> H2[422/409<br/>komunikat błędu]
+    H1 -- Tak --> D
+    I --> D
+    J --> K{Koszyk nie jest pusty<br/>i stan magazynowy wystarcza?}
+    K -- Nie --> K1[400/409<br/>komunikat błędu]
+    K -- Tak --> L[Utworzenie zamówienia NEW]
+    L --> M[Odjęcie produktów ze stanu]
+    M --> N[Wyczyszczenie koszyka]
+    N --> O[201: zamówienie z summary]
+```
+
 ## API testowe
 
 Włączane zmienną `ENABLE_TEST_API=1` (Playwright robi to automatycznie):
